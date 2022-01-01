@@ -14,17 +14,23 @@ do
     then
         echo "Password mismatch"
     fi
-#passphrase="hello, world"
 done
+###deprecated
 # generate salt
-salt=$(openssl rand -hex 6)
-
+#salt=$(openssl rand -hex 6)
 # generate hash
-algorithm=sha1
-hash="$(echo ${passphrase} | iconv -t utf-8)${salt}" | openssl dgst -${algorithm} | awk -v alg="${algorithm}" -v salt="${salt}" '{print alg ":" salt ":" $NF}'
-
-mkdir -p ~/jupyter
-cat <<EOF > ~/jupyter_notebook_config.json
+#algorithm=sha1
+#hash=$(echo ${passphrase}${salt}|openssl dgst -${algorithm} | awk -v alg="${algorithm}" -v salt="${salt}" '{print alg ":" salt ":" $NF}')
+converted=$(echo ${passphrase} | iconv -t utf-8)
+pkgexists=$(python3 -c 'import pkgutil; print(1 if pkgutil.find_loader("IPython") else 0)')
+if [ $pkgexists != 1 ]
+then
+    pip3 install ipython
+fi
+hash=$(python3 -c "from IPython.lib.security import passwd; print(passwd(passphrase='${converted}', algorithm='sha1'))")
+echo "hash : ${hash}"
+mkdir -p ~/.jupyter
+cat <<EOF > ~/.jupyter/jupyter_notebook_config.json
 {
   "NotebookApp": {
     "password": "$hash"
@@ -32,10 +38,8 @@ cat <<EOF > ~/jupyter_notebook_config.json
 }
 EOF
 
-docker run -d -p 8888:8888 -v ~/jupyter:/home/jovyan/.jupyter \
--v ~/work:/home/jovyan/work \
--e GRANT_SUDO=yes \
---user root \
+docker run -d -p 8888:8888 -v ~/.jupyter:/home/jovyan/.jupyter \
+-v ~/jupyter:/home/jovyan/work \
 --restart always \
 --name jupyter jupyter/tensorflow-notebook
 
